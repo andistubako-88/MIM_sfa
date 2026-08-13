@@ -2,7 +2,7 @@ name: PHP Lint
 
 on:
   push:
-    branches: [main]
+    branches: [main, foundation, visit-engine]
   pull_request:
     branches: [main]
 
@@ -10,14 +10,19 @@ jobs:
   lint:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: shivammathur/setup-php@v2
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
         with:
           php-version: '8.2'
       - name: Lint PHP files
+        shell: bash
         run: |
-          set -e
-          files=$(find . -type f -name '*.php' -not -path './.git/*')
-          for file in $files; do
+          set -euo pipefail
+          found=0
+          while IFS= read -r -d '' file; do
+            found=1
             php -l "$file"
-          done
+          done < <(find . -type f -name '*.php' -not -path './.git/*' -print0)
+          if [ "$found" -eq 0 ]; then echo 'No PHP files found.'; fi
