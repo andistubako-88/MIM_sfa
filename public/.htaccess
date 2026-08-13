@@ -1,0 +1,12 @@
+RewriteEngine On
+
+# Do not expose configuration, database, or documentation directories.
+RewriteRule ^(?:config|database|docs)(?:/|$) - [F,L]
+
+# Keep API endpoints accessible directly.
+RewriteRule ^api/(.*)$ api/$1 [L]
+
+# Front controller placeholder for the mobile web application.
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteCond %{REQUEST_FILENAME} !-d
+RewriteRule ^ index.php [L]
