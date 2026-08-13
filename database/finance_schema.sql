@@ -43,7 +43,7 @@ CREATE TABLE payments (
   FOREIGN KEY (sales_id) REFERENCES sales(id),
   FOREIGN KEY (created_by) REFERENCES users(id),
   INDEX idx_payment_invoice(invoice_id),
-  INDEX idx_payment_sales(invoice_id, payment_date)
+  INDEX idx_payment_sales(sales_id, payment_date)
 );
 
 CREATE TABLE settlement_documents (
