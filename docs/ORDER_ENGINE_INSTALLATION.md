@@ -15,6 +15,7 @@ Run the database files in this order against the same `mim_sfa` database:
 9. `database/delivery_return_schema.sql`
 10. `database/finance_schema.sql`
 11. `database/report_permissions.sql`
+12. `database/finance_approval_permissions.sql`
 
 The order is intentional because later schemas reference users, roles, sales, outlets, products, visits and orders created earlier.
 
@@ -32,13 +33,25 @@ The order is intentional because later schemas reference users, roles, sales, ou
 
 `SUBMITTED` order can reserve stock. A reservation is locked and checked against other active reservations.
 
+### Approval
+
+Only OWNER, ADMIN and SUPERVISOR can approve an order. Sales cannot approve their own order.
+
 ### Commit
 
 Order commit locks the order, reservation and stock balance. It re-checks available stock before deducting it and records a `SALE` stock movement in the same database transaction.
 
+### Loading
+
+Warehouse loading atomically deducts warehouse stock, adds Sales stock and records a `LOADING` movement. Insufficient warehouse stock rolls the whole operation back.
+
 ### Delivery
 
-Delivery requires an `APPROVED` order and prevents multiple active deliveries for one order.
+Delivery requires an `APPROVED` order with all stock reservations committed and prevents multiple active deliveries for one order.
+
+### Invoice
+
+Invoice is generated once per active delivery and takes its financial totals from the source order server-side.
 
 ### Payment
 
@@ -46,11 +59,11 @@ Payment locks the invoice, calculates remaining balance server-side and rejects 
 
 ### Return
 
-Return quantity is checked against delivered quantity minus previously posted returns for the same delivery/product.
+Return quantity is checked against delivered quantity minus previously posted returns for the same delivery/product, then returned to the Sales stock location atomically.
 
 ### Settlement
 
-Cash settlement calculates expected cash from posted CASH payments for the selected salesman/date. The submitted amount is never treated as the source of truth for expected cash.
+Cash settlement calculates expected cash from posted CASH payments for the selected salesman/date. Only OWNER, ADMIN and SUPERVISOR can approve a submitted settlement.
 
 ## Pre-production checklist
 
@@ -63,9 +76,12 @@ Cash settlement calculates expected cash from posted CASH payments for the selec
 - [ ] Create test visit and order
 - [ ] Verify reservation conflict with two concurrent orders
 - [ ] Verify stock cannot become negative
-- [ ] Verify delivery cannot be duplicated
+- [ ] Verify delivery cannot be duplicated or created before stock commit
+- [ ] Verify invoice cannot be duplicated for one delivery
 - [ ] Verify payment cannot exceed invoice outstanding
 - [ ] Verify return cannot exceed delivered-minus-returned quantity
+- [ ] Verify daily settlement cannot be duplicated
+- [ ] Verify settlement approval is restricted to management roles
 - [ ] Verify Sales cannot access another Salesman's stock/order/payment
 - [ ] Verify non-Owner cannot access Owner-only report fields
 - [ ] Verify rollback by intentionally failing a transaction in staging
