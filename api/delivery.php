@@ -14,10 +14,15 @@ $q=$pdo->prepare('SELECT id,sales_id,outlet_id,status FROM orders WHERE id=? LIM
 if(!$o||$o['status']!=='APPROVED')throw new RuntimeException('Order belum APPROVED.',409);
 $own=$pdo->prepare('SELECT 1 FROM sales WHERE id=? AND user_id=?');$own->execute([$o['sales_id'],$user['id']]);
 if($user['role_code']==='SALES'&&!$own->fetchColumn())throw new RuntimeException('Order bukan milik salesman ini.',403);
+$committed=$pdo->prepare("SELECT COUNT(*) FROM order_stock_reservations WHERE order_id=? AND status='COMMITTED'");$committed->execute([$orderId]);
+$itemCount=$pdo->prepare('SELECT COUNT(*) FROM order_items WHERE order_id=?');$itemCount->execute([$orderId]);
+if((int)$itemCount->fetchColumn()<1||(int)$committed->fetchColumn()<1)throw new RuntimeException('Stock order belum di-commit.',409);
+$uncommitted=$pdo->prepare("SELECT COUNT(*) FROM order_stock_reservations WHERE order_id=? AND status<>'COMMITTED'");$uncommitted->execute([$orderId]);
+if((int)$uncommitted->fetchColumn()>0)throw new RuntimeException('Masih ada reservation yang belum committed.',409);
 $exists=$pdo->prepare("SELECT id FROM delivery_documents WHERE order_id=? AND status<>'CANCELLED' LIMIT 1");$exists->execute([$orderId]);
 if($exists->fetch())throw new RuntimeException('Delivery untuk order ini sudah dibuat.',409);
 $num='DLV-'.date('YmdHis').'-'.strtoupper(bin2hex(random_bytes(3)));
-$ins=$pdo->prepare("INSERT INTO delivery_documents(delivery_number,order_id,sales_id,outlet_id,status,recipient_name,created_by) VALUES(?,?,?,?, 'DELIVERED',?,?)");
+$ins=$pdo->prepare("INSERT INTO delivery_documents(delivery_number,order_id,sales_id,outlet_id,status,delivered_at,recipient_name,created_by) VALUES(?,?,?,?, 'DELIVERED',NOW(),?,?)");
 $ins->execute([$num,$o['id'],$o['sales_id'],$o['outlet_id'],$recipient?:null,$user['id']]);
 $deliveryId=(int)$pdo->lastInsertId();
 $items=$pdo->prepare('SELECT product_id,qty FROM order_items WHERE order_id=?');$items->execute([$orderId]);
