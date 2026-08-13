@@ -43,7 +43,7 @@ CREATE TABLE payments (
   FOREIGN KEY (sales_id) REFERENCES sales(id),
   FOREIGN KEY (created_by) REFERENCES users(id),
   INDEX idx_payment_invoice(invoice_id),
-  INDEX idx_payment_sales(sales_id, payment_date)
+  INDEX idx_payment_sales(invoice_id, payment_date)
 );
 
 CREATE TABLE settlement_documents (
@@ -63,6 +63,6 @@ CREATE TABLE settlement_documents (
   FOREIGN KEY (sales_id) REFERENCES sales(id),
   FOREIGN KEY (created_by) REFERENCES users(id),
   FOREIGN KEY (approved_by) REFERENCES users(id) ON DELETE SET NULL,
-  INDEX idx_settlement_sales_date(sales_id, settlement_date),
+  UNIQUE KEY uq_settlement_sales_date(sales_id, settlement_date),
   INDEX idx_settlement_status(status)
 );
