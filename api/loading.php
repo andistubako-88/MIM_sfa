@@ -10,7 +10,8 @@ if($from<1||$to<1||$from===$to||!is_array($items)||!$items)json_response(['succe
 $pdo=db();$pdo->beginTransaction();
 try{
  $loc=$pdo->prepare("SELECT id,location_type,sales_id FROM stock_locations WHERE id IN (?,?) AND is_active=1 FOR UPDATE");$loc->execute([$from,$to]);$locations=$loc->fetchAll();if(count($locations)!==2)throw new RuntimeException('Stock location tidak valid.',422);
- $types=[];foreach($locations as $l)$types[(int)$l['id']=$l['location_type'];if($types[$from]!=='WAREHOUSE'||$types[$to]!=='SALES')throw new RuntimeException('Loading harus dari WAREHOUSE ke SALES.',422);
+ $types=[];foreach($locations as $l){$types[(int)$l['id']]=$l['location_type'];}
+ if($types[$from]!=='WAREHOUSE'||$types[$to]!=='SALES')throw new RuntimeException('Loading harus dari WAREHOUSE ke SALES.',422);
  $num='LOAD-'.date('YmdHis').'-'.strtoupper(bin2hex(random_bytes(3)));
  $ins=$pdo->prepare("INSERT INTO loading_documents(loading_number,warehouse_location_id,sales_location_id,status,notes,created_by) VALUES(?,?,?,?,?,?)");$ins->execute([$num,$from,$to,'POSTED',$notes?:null,$user['id']]);$loadingId=(int)$pdo->lastInsertId();
  $li=$pdo->prepare('INSERT INTO loading_items(loading_id,product_id,qty) VALUES(?,?,?)');
