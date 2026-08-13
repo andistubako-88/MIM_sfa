@@ -1,0 +1,22 @@
+name: Mahameru Smoke Test
+
+on:
+  push:
+    branches: [main, order-engine]
+  pull_request:
+    branches: [main]
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+      - name: PHP syntax check
+        run: |
+          set -e
+          for file in $(find api tests -type f -name '*.php'); do php -l "$file"; done
+      - name: Repository smoke test
+        run: php tests/smoke_test.php
