@@ -6,6 +6,7 @@ CREATE TABLE visits (
   outlet_id BIGINT UNSIGNED NOT NULL,
   visit_date DATE NOT NULL,
   status ENUM('ACTIVE','COMPLETED','CANCELLED') NOT NULL DEFAULT 'ACTIVE',
+  active_sales_id BIGINT UNSIGNED GENERATED ALWAYS AS (CASE WHEN status = 'ACTIVE' THEN sales_id ELSE NULL END) STORED,
   checkin_at DATETIME NOT NULL,
   checkout_at DATETIME NULL,
   checkin_latitude DECIMAL(10,7) NOT NULL,
@@ -24,10 +25,9 @@ CREATE TABLE visits (
   FOREIGN KEY (outlet_id) REFERENCES outlets(id),
   INDEX idx_visits_sales_date (sales_id, visit_date),
   INDEX idx_visits_outlet_date (outlet_id, visit_date),
-  INDEX idx_visits_status (status)
+  INDEX idx_visits_status (status),
+  UNIQUE INDEX uq_active_visit_per_sales (active_sales_id)
 );
-
-CREATE UNIQUE INDEX uq_active_visit_per_sales ON visits (sales_id, status);
 
 CREATE TABLE visit_activities (
   id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
