@@ -137,6 +137,9 @@ jobs:
             php -l "$file"
           done
 
+      - name: Sales Workspace regression guard
+        run: php tests/sales_workspace_regression.php
+
       - name: Smoke test
         run: php tests/smoke_test.php
 
