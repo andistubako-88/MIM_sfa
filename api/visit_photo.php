@@ -1,0 +1,21 @@
+<?php
+declare(strict_types=1);
+require __DIR__ . '/auth.php';
+$user = require_permission('visits.create');
+require_csrf();
+if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'POST') json_response(['success'=>false,'message'=>'Method not allowed.'],405);
+if (!isset($_FILES['photo']) || !is_array($_FILES['photo'])) json_response(['success'=>false,'message'=>'Foto wajib diunggah.'],422);
+$file=$_FILES['photo'];
+if (($file['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_OK) json_response(['success'=>false,'message'=>'Upload foto gagal.'],422);
+if ((int)($file['size'] ?? 0) < 1 || (int)$file['size'] > 5*1024*1024) json_response(['success'=>false,'message'=>'Ukuran foto maksimal 5 MB.'],422);
+$tmp=(string)$file['tmp_name'];
+$finfo=new finfo(FILEINFO_MIME_TYPE); $mime=$finfo->file($tmp);
+$allowed=['image/jpeg'=>'jpg','image/png'=>'png','image/webp'=>'webp'];
+if (!isset($allowed[$mime])) json_response(['success'=>false,'message'=>'Format foto harus JPG, PNG, atau WebP.'],422);
+if (@getimagesize($tmp) === false) json_response(['success'=>false,'message'=>'File bukan gambar yang valid.'],422);
+$dir=__DIR__.'/../public/uploads/visits';
+if (!is_dir($dir) && !mkdir($dir,0750,true) && !is_dir($dir)) json_response(['success'=>false,'message'=>'Storage upload tidak tersedia.'],500);
+$name='visit_'.(int)$user['id'].'_'.bin2hex(random_bytes(12)).'.'.$allowed[$mime];
+$target=$dir.'/'.$name;
+if (!move_uploaded_file($tmp,$target)) json_response(['success'=>false,'message'=>'Foto gagal disimpan.'],500);
+json_response(['success'=>true,'photo_path'=>'uploads/visits/'.$name]);
