@@ -5,6 +5,7 @@ on:
     branches: [ main, 'audit/**', 'feat/**' ]
   pull_request:
     branches: [ main ]
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -55,37 +56,22 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          sed 's/USE mim_sfa;/USE mim_sfa_test;/g; s/CREATE DATABASE IF NOT EXISTS mim_sfa/CREATE DATABASE IF NOT EXISTS mim_sfa_test/g' database/schema.sql \
-            | mysql -h 127.0.0.1 -uroot -proot
+          sed 's/USE mim_sfa;/USE mim_sfa_test;/g; s/CREATE DATABASE IF NOT EXISTS mim_sfa/CREATE DATABASE IF NOT EXISTS mim_sfa_test/g' database/schema.sql | mysql -h 127.0.0.1 -uroot -proot
 
       - name: Load dependent schemas in order
         shell: bash
         run: |
           set -euo pipefail
-          for sql in \
-            database/visit_schema.sql \
-            database/attendance_plan_schema.sql \
-            database/order_schema.sql \
-            database/inventory_schema.sql \
-            database/order_stock_reservation.sql \
-            database/delivery_return_schema.sql \
-            database/finance_schema.sql; do
+          for sql in database/visit_schema.sql database/attendance_plan_schema.sql database/order_schema.sql database/inventory_schema.sql database/order_stock_reservation.sql database/delivery_return_schema.sql database/finance_schema.sql; do
             echo "Loading $sql"
-            sed 's/USE mim_sfa;/USE mim_sfa_test;/g; s/CREATE DATABASE IF NOT EXISTS mim_sfa/CREATE DATABASE IF NOT EXISTS mim_sfa_test/g' "$sql" \
-              | mysql -h 127.0.0.1 -uroot -proot
+            sed 's/USE mim_sfa;/USE mim_sfa_test;/g; s/CREATE DATABASE IF NOT EXISTS mim_sfa/CREATE DATABASE IF NOT EXISTS mim_sfa_test/g' "$sql" | mysql -h 127.0.0.1 -uroot -proot
           done
 
       - name: Load permission and seed SQL
         shell: bash
         run: |
           set -euo pipefail
-          for sql in \
-            database/seed_rbac.sql \
-            database/order_permissions.sql \
-            database/order_approval_permissions.sql \
-            database/inventory_seed_permissions.sql \
-            database/report_permissions.sql \
-            database/finance_approval_permissions.sql; do
+          for sql in database/seed_rbac.sql database/order_permissions.sql database/order_approval_permissions.sql database/inventory_seed_permissions.sql database/report_permissions.sql database/finance_approval_permissions.sql; do
             echo "Loading $sql"
             sed 's/USE mim_sfa;/USE mim_sfa_test;/g' "$sql" | mysql -h 127.0.0.1 -uroot -proot
           done
@@ -133,9 +119,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          find api public tests -type f -name '*.php' -print0 | while IFS= read -r -d '' file; do
-            php -l "$file"
-          done
+          find api public tests -type f -name '*.php' -print0 | while IFS= read -r -d '' file; do php -l "$file"; done
 
       - name: Sales Workspace regression guard
         run: php tests/sales_workspace_regression.php
