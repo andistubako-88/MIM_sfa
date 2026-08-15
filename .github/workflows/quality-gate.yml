@@ -147,4 +147,5 @@ jobs:
         run: php tests/mysql_integration.php
 
       - name: Real API transaction E2E
-        run: bash tests/api_e2e.sh
+        shell: bash
+        run: bash -x tests/api_e2e.sh
