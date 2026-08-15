@@ -1,0 +1,38 @@
+name: MIM SFA Quality Gate
+
+on:
+  push:
+    branches: [ main, 'audit/**', 'feat/**' ]
+  pull_request:
+    branches: [ main ]
+
+permissions:
+  contents: read
+
+jobs:
+  php-quality:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          coverage: none
+
+      - name: PHP syntax check
+        shell: bash
+        run: |
+          set -euo pipefail
+          files=$(find api public tests -type f -name '*.php' -print)
+          for file in $files; do
+            php -l "$file"
+          done
+
+      - name: Smoke test
+        run: php tests/smoke_test.php
+
+      - name: E2E contract test
+        run: php tests/e2e_contract_test.php
