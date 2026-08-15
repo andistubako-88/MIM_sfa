@@ -8,7 +8,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') !== 'POST') json_response(['success'=>
 require_csrf();
 $input=json_decode((string)file_get_contents('php://input'),true);
 $invoiceId=(int)($input['invoice_id']??0); $amount=(float)($input['amount']??0); $method=strtoupper(trim((string)($input['payment_method']??'')));
-if($invoiceId<1||$amount<=0||!in_array($method,['CASH','TRANSFER','GIRO','OTHER'],true)) json_response(['success'=>false,'message'=>'Invoice, amount, dan metode pembayaran tidak valid.'],422);
+if($invoiceId<1||$amount<=0||!is_finite($amount)||!in_array($method,['CASH','TRANSFER','GIRO','OTHER'],true)) json_response(['success'=>false,'message'=>'Invoice, amount, dan metode pembayaran tidak valid.'],422);
 $pdo=db();$pdo->beginTransaction();
 try{
  $q=$pdo->prepare('SELECT id,outlet_id,sales_id,grand_total,paid_total,status FROM invoices WHERE id=? LIMIT 1 FOR UPDATE');$q->execute([$invoiceId]);$inv=$q->fetch();
