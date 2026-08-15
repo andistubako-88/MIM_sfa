@@ -12,6 +12,24 @@ permissions:
 jobs:
   php-quality:
     runs-on: ubuntu-latest
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: mim_sfa_test
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -uroot -proot"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+    env:
+      MIM_TEST_DB_HOST: 127.0.0.1
+      MIM_TEST_DB_NAME: mim_sfa_test
+      MIM_TEST_DB_USER: root
+      MIM_TEST_DB_PASS: root
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -20,7 +38,21 @@ jobs:
         uses: shivammathur/setup-php@v2
         with:
           php-version: '8.2'
+          extensions: pdo_mysql
           coverage: none
+
+      - name: Wait for MySQL
+        shell: bash
+        run: |
+          set -euo pipefail
+          for i in {1..30}; do
+            if mysqladmin ping -h 127.0.0.1 -uroot -proot --silent; then exit 0; fi
+            sleep 2
+          done
+          exit 1
+
+      - name: Load database schema
+        run: mysql -h 127.0.0.1 -uroot -proot mim_sfa_test < database/schema.sql
 
       - name: PHP syntax check
         shell: bash
@@ -35,3 +67,6 @@ jobs:
 
       - name: E2E contract test
         run: php tests/e2e_contract_test.php
+
+      - name: MySQL integration preflight
+        run: php tests/mysql_integration.php
