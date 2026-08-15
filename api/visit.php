@@ -56,7 +56,8 @@ if ($action === 'checkin') {
         json_response(['success' => false, 'message' => 'Company settings belum dikonfigurasi.'], 500);
     }
 
-    $now = new DateTimeImmutable('now', new DateTimeZone($cfg['timezone'] ?: 'Asia/Jakarta'));
+    $timezone = new DateTimeZone($cfg['timezone'] ?: 'Asia/Jakarta');
+    $now = new DateTimeImmutable('now', $timezone);
     $time = $now->format('H:i:s');
     if ($time < $cfg['operational_start'] || $time > $cfg['operational_end']) {
         json_response(['success' => false, 'message' => 'Check-in di luar jam operasional.'], 422);
@@ -114,15 +115,16 @@ if ($action === 'checkout') {
 
     $lat = request_float('latitude');
     $lon = request_float('longitude');
-    $stmt = db()->prepare("SELECT v.*, o.latitude AS outlet_latitude, o.longitude AS outlet_longitude, cs.minimum_visit_minutes FROM visits v JOIN sales s ON s.id=v.sales_id JOIN outlets o ON o.id=v.outlet_id CROSS JOIN company_settings cs WHERE s.user_id=? AND v.status='ACTIVE' ORDER BY v.id DESC LIMIT 1");
+    $stmt = db()->prepare("SELECT v.*, o.latitude AS outlet_latitude, o.longitude AS outlet_longitude, cs.minimum_visit_minutes, cs.timezone FROM visits v JOIN sales s ON s.id=v.sales_id JOIN outlets o ON o.id=v.outlet_id CROSS JOIN company_settings cs WHERE s.user_id=? AND v.status='ACTIVE' ORDER BY v.id DESC LIMIT 1");
     $stmt->execute([(int) $user['id']]);
     $visit = $stmt->fetch();
     if (!$visit) {
         json_response(['success' => false, 'message' => 'Tidak ada kunjungan aktif.'], 404);
     }
 
-    $now = new DateTimeImmutable('now', new DateTimeZone('Asia/Jakarta'));
-    $checkin = new DateTimeImmutable($visit['checkin_at'], new DateTimeZone('Asia/Jakarta'));
+    $timezone = new DateTimeZone($visit['timezone'] ?: 'Asia/Jakarta');
+    $now = new DateTimeImmutable('now', $timezone);
+    $checkin = new DateTimeImmutable($visit['checkin_at'], $timezone);
     $elapsed = $now->getTimestamp() - $checkin->getTimestamp();
     $minimumSeconds = ((int) $visit['minimum_visit_minutes']) * 60;
     if ($elapsed < $minimumSeconds) {
