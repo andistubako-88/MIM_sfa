@@ -46,8 +46,12 @@ try {
     $pdo->prepare('INSERT INTO outlet_products(outlet_id,product_id,is_active) VALUES(?,?,1)')->execute([$outletId,$productId]);
 
     $pdo->prepare("DELETE FROM stock_locations WHERE code IN ('E2E-WH','E2E-SALES')")->execute();
-    $pdo->prepare("INSERT INTO warehouses(code,name) VALUES('E2E-WH','E2E Warehouse')");
+    $pdo->prepare("DELETE FROM warehouses WHERE code='E2E-WH'")->execute();
+    $pdo->prepare("INSERT INTO warehouses(code,name) VALUES('E2E-WH','E2E Warehouse')")->execute();
     $warehouseId=(int)$pdo->lastInsertId();
+    if ($warehouseId <= 0) {
+        throw new RuntimeException('Failed to create E2E warehouse fixture');
+    }
     $pdo->prepare("INSERT INTO stock_locations(warehouse_id,code,name,location_type,is_active) VALUES(?, 'E2E-WH','E2E Warehouse','WAREHOUSE',1)")->execute([$warehouseId]);
     $warehouseLocationId=(int)$pdo->lastInsertId();
     $pdo->prepare("INSERT INTO stock_locations(sales_id,code,name,location_type,is_active) VALUES(?, 'E2E-SALES','E2E Sales Stock','SALES',1)")->execute([$salesId]);
