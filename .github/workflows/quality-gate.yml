@@ -99,6 +99,36 @@ jobs:
             mysql -N -h 127.0.0.1 -uroot -proot -e "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='mim_sfa_test' AND table_name='${table}'" | grep -qx '1' || { echo "Missing table: $table"; exit 1; }
           done
 
+      - name: Configure disposable application
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat > config/config.php <<'PHP'
+          <?php
+          return [
+              'app' => [
+                  'name' => 'MIM SFA E2E',
+                  'env' => 'testing',
+                  'timezone' => 'Asia/Jakarta',
+                  'base_url' => 'http://127.0.0.1:8080',
+                  'session_name' => 'mim_sfa_e2e',
+              ],
+              'database' => [
+                  'driver' => 'mysql',
+                  'host' => '127.0.0.1',
+                  'port' => 3306,
+                  'database' => 'mim_sfa_test',
+                  'username' => 'root',
+                  'password' => 'root',
+                  'charset' => 'utf8mb4',
+              ],
+              'security' => [
+                  'password_min_length' => 8,
+                  'csrf_enabled' => true,
+              ],
+          ];
+          PHP
+
       - name: PHP syntax check
         shell: bash
         run: |
@@ -115,3 +145,6 @@ jobs:
 
       - name: MySQL integration preflight
         run: php tests/mysql_integration.php
+
+      - name: Real API transaction E2E
+        run: bash tests/api_e2e.sh
