@@ -51,8 +51,30 @@ jobs:
           done
           exit 1
 
-      - name: Load database schema
-        run: mysql -h 127.0.0.1 -uroot -proot mim_sfa_test < database/schema.sql
+      - name: Load all repository SQL into disposable test DB
+        shell: bash
+        run: |
+          set -euo pipefail
+          found=0
+          while IFS= read -r -d '' sql; do
+            found=1
+            echo "Loading $sql"
+            sed 's/USE mim_sfa;/USE mim_sfa_test;/g; s/CREATE DATABASE IF NOT EXISTS mim_sfa/CREATE DATABASE IF NOT EXISTS mim_sfa_test/g' "$sql" \
+              | mysql -h 127.0.0.1 -uroot -proot
+          done < <(find database -type f -name '*.sql' -print0 | sort -z)
+          if [ "$found" -ne 1 ]; then
+            echo 'No SQL schema files found.' >&2
+            exit 1
+          fi
+
+      - name: Verify required transaction tables
+        shell: bash
+        run: |
+          set -euo pipefail
+          tables='users roles sales outlets products visits orders order_items order_status_history stock_locations stock_balances stock_movements order_stock_reservations invoices payments settlements'
+          for table in $tables; do
+            mysql -N -h 127.0.0.1 -uroot -proot -e "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='mim_sfa_test' AND table_name='${table}'" | grep -qx '1' || { echo "Missing table: $table"; exit 1; }
+          done
 
       - name: PHP syntax check
         shell: bash
