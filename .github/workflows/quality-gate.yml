@@ -110,7 +110,7 @@ jobs:
                   'name' => 'MIM SFA E2E',
                   'env' => 'testing',
                   'timezone' => 'Asia/Jakarta',
-                  'base_url' => 'http://127.0.0.1:8080',
+                  'base_url' => 'http://127.0.0.1:8090',
                   'session_name' => 'mim_sfa_e2e',
               ],
               'database' => [
