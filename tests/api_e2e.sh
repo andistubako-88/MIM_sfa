@@ -82,7 +82,8 @@ test "$(jq -r .success <<<"$loading")" = "true"
 
 # 2) Sales checks in within the configured 100m radius with a mandatory photo.
 sales_csrf=$(login sales e2e_sales)
-checkin=$(api_form sales "$sales_csrf" "api/visit.php?action=checkin" \
+checkin=$(api_form sales "$sales_csrf" api/visit.php \
+  --data-urlencode action=checkin \
   --data-urlencode "outlet_id=$outlet_id" --data-urlencode "latitude=$lat" --data-urlencode "longitude=$lon" \
   --data-urlencode "accuracy_meters=5" --data-urlencode "mock_location_detected=false" --data-urlencode "photo_path=/uploads/e2e-checkin.jpg")
 test "$(jq -r .success <<<"$checkin")" = "true"
