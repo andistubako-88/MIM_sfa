@@ -1,23 +1,35 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-BASE_URL="${MIM_E2E_BASE_URL:-http://127.0.0.1:8080}"
+BASE_URL="${MIM_E2E_BASE_URL:-http://127.0.0.1:8090}"
 COOKIE_DIR="${RUNNER_TEMP:-/tmp}/mim-sfa-e2e"
+SERVER_LOG="${RUNNER_TEMP:-/tmp}/mim-sfa-e2e-server.log"
 mkdir -p "$COOKIE_DIR"
-rm -f "$COOKIE_DIR"/*.cookie
+rm -f "$COOKIE_DIR"/*.cookie "$SERVER_LOG"
 
-php -S 127.0.0.1:8080 -t . >/tmp/mim-sfa-e2e-server.log 2>&1 &
+php -S 127.0.0.1:8090 -t . >"$SERVER_LOG" 2>&1 &
 SERVER_PID=$!
 trap 'kill "$SERVER_PID" 2>/dev/null || true' EXIT
+
+server_ready=false
 for i in {1..30}; do
-  if curl -fsS "$BASE_URL/api/health.php" >/dev/null; then break; fi
   if ! kill -0 "$SERVER_PID" 2>/dev/null; then
-    cat /tmp/mim-sfa-e2e-server.log >&2 || true
+    echo "E2E server exited unexpectedly." >&2
+    cat "$SERVER_LOG" >&2 || true
     exit 1
+  fi
+  if curl -fsS --max-time 2 "$BASE_URL/api/health.php" >/dev/null 2>&1; then
+    server_ready=true
+    break
   fi
   sleep 1
 done
-curl -fsS "$BASE_URL/api/health.php" >/dev/null
+
+if [[ "$server_ready" != "true" ]]; then
+  echo "E2E server did not become ready at $BASE_URL." >&2
+  cat "$SERVER_LOG" >&2 || true
+  exit 1
+fi
 
 fixture=$(php tests/e2e_fixture.php)
 outlet_id=$(jq -r .outlet_id <<<"$fixture")
