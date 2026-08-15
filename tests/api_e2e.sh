@@ -6,13 +6,18 @@ COOKIE_DIR="${RUNNER_TEMP:-/tmp}/mim-sfa-e2e"
 mkdir -p "$COOKIE_DIR"
 rm -f "$COOKIE_DIR"/*.cookie
 
-php -S 127.0.0.1:8080 >/tmp/mim-sfa-e2e-server.log 2>&1 &
+php -S 127.0.0.1:8080 -t . >/tmp/mim-sfa-e2e-server.log 2>&1 &
 SERVER_PID=$!
 trap 'kill "$SERVER_PID" 2>/dev/null || true' EXIT
 for i in {1..30}; do
   if curl -fsS "$BASE_URL/api/health.php" >/dev/null; then break; fi
+  if ! kill -0 "$SERVER_PID" 2>/dev/null; then
+    cat /tmp/mim-sfa-e2e-server.log >&2 || true
+    exit 1
+  fi
   sleep 1
 done
+curl -fsS "$BASE_URL/api/health.php" >/dev/null
 
 fixture=$(php tests/e2e_fixture.php)
 outlet_id=$(jq -r .outlet_id <<<"$fixture")
@@ -25,7 +30,9 @@ lon=$(jq -r .longitude <<<"$fixture")
 password=$(jq -r .password <<<"$fixture")
 
 login() {
-  local name="$1" user="$2" cookie="$COOKIE_DIR/$name.cookie"
+  local name="$1"
+  local user="$2"
+  local cookie="$COOKIE_DIR/$name.cookie"
   local csrf_json csrf login_json
   csrf_json=$(curl -fsS -c "$cookie" "$BASE_URL/api/auth.php?action=csrf")
   csrf=$(jq -r .csrf_token <<<"$csrf_json")
@@ -38,13 +45,19 @@ login() {
 }
 
 api_form() {
-  local name="$1" csrf="$2" path="$3"; shift 3
+  local name="$1"
+  local csrf="$2"
+  local path="$3"
+  shift 3
   curl -sS -b "$COOKIE_DIR/$name.cookie" -c "$COOKIE_DIR/$name.cookie" -X POST \
     -H "X-CSRF-Token: $csrf" "$@" "$BASE_URL/$path"
 }
 
 api_json() {
-  local name="$1" csrf="$2" path="$3" payload="$4"
+  local name="$1"
+  local csrf="$2"
+  local path="$3"
+  local payload="$4"
   curl -sS -b "$COOKIE_DIR/$name.cookie" -c "$COOKIE_DIR/$name.cookie" -X POST \
     -H "Content-Type: application/json" -H "X-CSRF-Token: $csrf" \
     --data "$payload" "$BASE_URL/$path"
