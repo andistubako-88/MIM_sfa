@@ -1,15 +1,21 @@
-# CI trigger verification: this comment intentionally creates a fresh push event.
+# MIM SFA Quality Gate
 name: MIM SFA Quality Gate
 
 on:
   push:
-    branches: [ main, 'audit/**', 'feat/**' ]
+    branches: [ main, 'audit/**', 'feat/**', 'fix/**' ]
   pull_request:
     branches: [ main ]
   workflow_dispatch:
 
 permissions:
   contents: read
+
+env:
+  MIM_TEST_DB_HOST: 127.0.0.1
+  MIM_TEST_DB_NAME: mim_sfa_test
+  MIM_TEST_DB_USER: root
+  MIM_TEST_DB_PASS: root
 
 jobs:
   php-quality:
@@ -27,74 +33,74 @@ jobs:
           --health-interval=10s
           --health-timeout=5s
           --health-retries=10
-    env:
-      MIM_TEST_DB_HOST: 127.0.0.1
-      MIM_TEST_DB_NAME: mim_sfa_test
-      MIM_TEST_DB_USER: root
-      MIM_TEST_DB_PASS: root
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-
       - name: Setup PHP
         uses: shivammathur/setup-php@v2
         with:
           php-version: '8.3'
           extensions: pdo_mysql
           coverage: none
-
       - name: Wait for MySQL
         shell: bash
         run: |
           set -euo pipefail
           for i in {1..30}; do
-            if mysqladmin ping -h 127.0.0.1 -uroot -proot --silent; then exit 0; fi
+            if mysqladmin ping -h "$MIM_TEST_DB_HOST" -u"$MIM_TEST_DB_USER" -p"$MIM_TEST_DB_PASS" --silent; then exit 0; fi
             sleep 2
           done
           exit 1
-
       - name: Load core schema first
         shell: bash
         run: |
           set -euo pipefail
-          sed 's/USE mim_sfa;/USE mim_sfa_test;/g; s/CREATE DATABASE IF NOT EXISTS mim_sfa/CREATE DATABASE IF NOT EXISTS mim_sfa_test/g' database/schema.sql | mysql -h 127.0.0.1 -uroot -proot
-
+          sed "s/USE mim_sfa;/USE ${MIM_TEST_DB_NAME};/g; s/CREATE DATABASE IF NOT EXISTS mim_sfa/CREATE DATABASE IF NOT EXISTS ${MIM_TEST_DB_NAME}/g" database/schema.sql | mysql -h "$MIM_TEST_DB_HOST" -u"$MIM_TEST_DB_USER" -p"$MIM_TEST_DB_PASS"
       - name: Load dependent schemas in order
         shell: bash
         run: |
           set -euo pipefail
-          for sql in database/visit_schema.sql database/attendance_plan_schema.sql database/order_schema.sql database/inventory_schema.sql database/order_stock_reservation.sql database/delivery_return_schema.sql database/finance_schema.sql database/migrations/20260815_finance_hardening.sql; do
+          for sql in database/visit_schema.sql database/attendance_plan_schema.sql database/order_schema.sql database/inventory_schema.sql database/order_stock_reservation.sql database/delivery_return_schema.sql database/finance_schema.sql database/migrations/20260815_finance_hardening.sql database/migrations/2026_08_19_integrity_hardening.sql; do
             echo "Loading $sql"
-            sed 's/USE mim_sfa;/USE mim_sfa_test;/g; s/CREATE DATABASE IF NOT EXISTS mim_sfa/CREATE DATABASE IF NOT EXISTS mim_sfa_test/g' "$sql" | mysql -h 127.0.0.1 -uroot -proot
+            sed "s/USE mim_sfa;/USE ${MIM_TEST_DB_NAME};/g; s/CREATE DATABASE IF NOT EXISTS mim_sfa/CREATE DATABASE IF NOT EXISTS ${MIM_TEST_DB_NAME}/g" "$sql" | mysql -h "$MIM_TEST_DB_HOST" -u"$MIM_TEST_DB_USER" -p"$MIM_TEST_DB_PASS"
           done
-
       - name: Load permission and seed SQL
         shell: bash
         run: |
           set -euo pipefail
           for sql in database/seed_rbac.sql database/order_permissions.sql database/order_approval_permissions.sql database/inventory_seed_permissions.sql database/report_permissions.sql database/finance_approval_permissions.sql; do
             echo "Loading $sql"
-            sed 's/USE mim_sfa;/USE mim_sfa_test;/g' "$sql" | mysql -h 127.0.0.1 -uroot -proot
+            sed "s/USE mim_sfa;/USE ${MIM_TEST_DB_NAME};/g" "$sql" | mysql -h "$MIM_TEST_DB_HOST" -u"$MIM_TEST_DB_USER" -p"$MIM_TEST_DB_PASS"
           done
-
       - name: Verify required transaction tables
         shell: bash
         run: |
           set -euo pipefail
           tables='users roles sales outlets products visits plan_calls orders order_items order_status_history stock_locations stock_balances stock_movements order_stock_reservations delivery_documents delivery_items invoices payments settlement_documents'
           for table in $tables; do
-            mysql -N -h 127.0.0.1 -uroot -proot -e "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='mim_sfa_test' AND table_name='${table}'" | grep -qx '1' || { echo "Missing table: $table"; exit 1; }
+            mysql -N -h "$MIM_TEST_DB_HOST" -u"$MIM_TEST_DB_USER" -p"$MIM_TEST_DB_PASS" -D "$MIM_TEST_DB_NAME" -e "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='${MIM_TEST_DB_NAME}' AND table_name='${table}'" | grep -qx '1' || { echo "Missing table: $table"; exit 1; }
           done
-
+      - name: Verify integrity hardening
+        shell: bash
+        run: |
+          set -euo pipefail
+          mysql -N -h "$MIM_TEST_DB_HOST" -u"$MIM_TEST_DB_USER" -p"$MIM_TEST_DB_PASS" -D "$MIM_TEST_DB_NAME" -e "SELECT COUNT(*) FROM permissions WHERE code='orders.view'" | grep -qx '1' || { echo 'Missing permission: orders.view'; exit 1; }
+          mysql -N -h "$MIM_TEST_DB_HOST" -u"$MIM_TEST_DB_USER" -p"$MIM_TEST_DB_PASS" -D "$MIM_TEST_DB_NAME" -e "SELECT COUNT(*) FROM permissions WHERE code='orders.approve'" | grep -qx '1' || { echo 'Missing permission: orders.approve'; exit 1; }
+          mysql -N -h "$MIM_TEST_DB_HOST" -u"$MIM_TEST_DB_USER" -p"$MIM_TEST_DB_PASS" -D "$MIM_TEST_DB_NAME" -e "SELECT COUNT(DISTINCT index_name) FROM information_schema.statistics WHERE table_schema='${MIM_TEST_DB_NAME}' AND table_name='visits' AND index_name='idx_visits_sales_status'" | grep -qx '1' || { echo 'Missing index: visits.idx_visits_sales_status'; mysql -h "$MIM_TEST_DB_HOST" -u"$MIM_TEST_DB_USER" -p"$MIM_TEST_DB_PASS" -D "$MIM_TEST_DB_NAME" -e "SHOW INDEX FROM visits"; exit 1; }
+          mysql -N -h "$MIM_TEST_DB_HOST" -u"$MIM_TEST_DB_USER" -p"$MIM_TEST_DB_PASS" -D "$MIM_TEST_DB_NAME" -e "SELECT COUNT(DISTINCT index_name) FROM information_schema.statistics WHERE table_schema='${MIM_TEST_DB_NAME}' AND table_name='orders' AND index_name='idx_orders_sales_status'" | grep -qx '1' || { echo 'Missing index: orders.idx_orders_sales_status'; mysql -h "$MIM_TEST_DB_HOST" -u"$MIM_TEST_DB_USER" -p"$MIM_TEST_DB_PASS" -D "$MIM_TEST_DB_NAME" -e "SHOW INDEX FROM orders"; exit 1; }
       - name: Verify finance hardening migration
         shell: bash
         run: |
           set -euo pipefail
-          mysql -N -h 127.0.0.1 -uroot -proot -e "SELECT COUNT(*) FROM information_schema.columns WHERE table_schema='mim_sfa_test' AND table_name='payments' AND column_name='idempotency_key'" | grep -qx '1'
-          mysql -N -h 127.0.0.1 -uroot -proot -e "SELECT COUNT(DISTINCT index_name) FROM information_schema.statistics WHERE table_schema='mim_sfa_test' AND table_name='payments' AND index_name='uq_payment_idempotency_key' AND non_unique=0" | grep -qx '1'
-          mysql -N -h 127.0.0.1 -uroot -proot -e "SELECT COUNT(DISTINCT index_name) FROM information_schema.statistics WHERE table_schema='mim_sfa_test' AND table_name='payments' AND index_name='idx_payment_settlement_lookup' AND non_unique=1" | grep -qx '1'
-          mysql -N -h 127.0.0.1 -uroot -proot -e "SELECT COUNT(*) FROM information_schema.statistics WHERE table_schema='mim_sfa_test' AND table_name='payments' AND index_name='idx_payment_settlement_lookup'" | grep -qx '4'
-
+          mysql -N -h "$MIM_TEST_DB_HOST" -u"$MIM_TEST_DB_USER" -p"$MIM_TEST_DB_PASS" -D "$MIM_TEST_DB_NAME" -e "SELECT COUNT(*) FROM information_schema.columns WHERE table_schema='${MIM_TEST_DB_NAME}' AND table_name='payments' AND column_name='idempotency_key'" | grep -qx '1' || { echo 'Missing column: payments.idempotency_key'; exit 1; }
+          canonical_idx='uq_payments_idempotency_key'
+          legacy_idx='uq_payment_idempotency_key'
+          idx_count=$(mysql -N -h "$MIM_TEST_DB_HOST" -u"$MIM_TEST_DB_USER" -p"$MIM_TEST_DB_PASS" -D "$MIM_TEST_DB_NAME" -e "SELECT COUNT(DISTINCT index_name) FROM information_schema.statistics WHERE table_schema='${MIM_TEST_DB_NAME}' AND table_name='payments' AND index_name IN ('$canonical_idx','$legacy_idx') AND non_unique=0")
+          test "$idx_count" = '1' || { echo "Expected exactly one unique idempotency index ($canonical_idx or legacy $legacy_idx), got $idx_count"; mysql -h "$MIM_TEST_DB_HOST" -u"$MIM_TEST_DB_USER" -p"$MIM_TEST_DB_PASS" -D "$MIM_TEST_DB_NAME" -e "SHOW INDEX FROM payments"; exit 1; }
+          mysql -N -h "$MIM_TEST_DB_HOST" -u"$MIM_TEST_DB_USER" -p"$MIM_TEST_DB_PASS" -D "$MIM_TEST_DB_NAME" -e "SELECT COUNT(DISTINCT index_name) FROM information_schema.statistics WHERE table_schema='${MIM_TEST_DB_NAME}' AND table_name='payments' AND index_name='idx_payment_settlement_lookup' AND non_unique=1" | grep -qx '1' || { echo 'Missing index: payments.idx_payment_settlement_lookup'; mysql -h "$MIM_TEST_DB_HOST" -u"$MIM_TEST_DB_USER" -p"$MIM_TEST_DB_PASS" -D "$MIM_TEST_DB_NAME" -e "SHOW INDEX FROM payments"; exit 1; }
+          expected_cols='sales_id,payment_date,status,payment_method'
+          actual_cols=$(mysql -N -h "$MIM_TEST_DB_HOST" -u"$MIM_TEST_DB_USER" -p"$MIM_TEST_DB_PASS" -D "$MIM_TEST_DB_NAME" -e "SELECT GROUP_CONCAT(column_name ORDER BY seq_in_index SEPARATOR ',') FROM information_schema.statistics WHERE table_schema='${MIM_TEST_DB_NAME}' AND table_name='payments' AND index_name='idx_payment_settlement_lookup'")
+          test "$actual_cols" = "$expected_cols" || { echo "Invalid idx_payment_settlement_lookup columns: expected $expected_cols, got $actual_cols"; mysql -h "$MIM_TEST_DB_HOST" -u"$MIM_TEST_DB_USER" -p"$MIM_TEST_DB_PASS" -D "$MIM_TEST_DB_NAME" -e "SHOW INDEX FROM payments"; exit 1; }
       - name: Configure disposable application
         shell: bash
         run: |
@@ -124,31 +130,23 @@ jobs:
               ],
           ];
           PHP
-
       - name: PHP syntax check
         shell: bash
         run: |
           set -euo pipefail
           find api public tests -type f -name '*.php' -print0 | while IFS= read -r -d '' file; do php -l "$file"; done
-
       - name: Sales Workspace regression guard
         run: php tests/sales_workspace_regression.php
-
       - name: Finance hardening regression guard
         run: php tests/finance_hardening_regression.php
-
       - name: Visit and Finance hardening contract guard
         run: php tests/visit_finance_hardening_contract.php
-
       - name: Smoke test
         run: php tests/smoke_test.php
-
       - name: E2E contract test
         run: php tests/e2e_contract_test.php
-
       - name: MySQL integration preflight
         run: php tests/mysql_integration.php
-
       - name: Real API transaction E2E
         shell: bash
         run: bash -x tests/api_e2e.sh

@@ -11,6 +11,10 @@ $pdo=db();$pdo->beginTransaction();
 try{
  $q=$pdo->prepare('SELECT id,sales_id,status FROM orders WHERE id=? LIMIT 1 FOR UPDATE');$q->execute([$orderId]);$order=$q->fetch();
  if(!$order||$order['status']!=='APPROVED')throw new RuntimeException('Reservation hanya dapat dibuat untuk order APPROVED.',409);
+ // A committed reservation is final. Never allow the same order to be reserved again,
+ // otherwise a second commit could deduct stock twice.
+ $committed=$pdo->prepare("SELECT 1 FROM order_stock_reservations WHERE order_id=? AND status='COMMITTED' LIMIT 1");$committed->execute([$orderId]);
+ if($committed->fetchColumn())throw new RuntimeException('Order sudah pernah di-commit ke stock dan tidak dapat di-reserve ulang.',409);
  $owner=$pdo->prepare('SELECT 1 FROM sales WHERE id=? AND user_id=? LIMIT 1');$owner->execute([$order['sales_id'],$user['id']]);
  if($user['role_code']==='SALES'&&!$owner->fetchColumn())throw new RuntimeException('Sales hanya dapat reserve order miliknya.',403);
  $location=$pdo->prepare("SELECT id,sales_id FROM stock_locations WHERE id=? AND location_type='SALES' AND is_active=1 LIMIT 1");$location->execute([$stockLocationId]);$loc=$location->fetch();

@@ -18,7 +18,11 @@ function request_float(string $key): float
     if (!isset($_POST[$key]) || !is_numeric($_POST[$key])) {
         json_response(['success' => false, 'message' => "Field {$key} wajib berupa angka."], 422);
     }
-    return (float) $_POST[$key];
+    $value = (float) $_POST[$key];
+    if (!is_finite($value)) {
+        json_response(['success' => false, 'message' => "Field {$key} tidak valid."], 422);
+    }
+    return $value;
 }
 
 function request_bool(string $key): bool
@@ -47,8 +51,18 @@ if ($action === 'checkin') {
     $mockReason = trim((string) ($_POST['mock_location_reason'] ?? '')) ?: null;
     $photoPath = trim((string) ($_POST['photo_path'] ?? ''));
 
+    if ($lat < -90 || $lat > 90 || $lon < -180 || $lon > 180) {
+        json_response(['success' => false, 'message' => 'Koordinat GPS tidak valid.'], 422);
+    }
+    if ($accuracy !== null && (!is_finite($accuracy) || $accuracy < 0)) {
+        json_response(['success' => false, 'message' => 'Akurasi GPS tidak valid.'], 422);
+    }
     if ($outletId <= 0 || $photoPath === '') {
         json_response(['success' => false, 'message' => 'Outlet dan foto check-in wajib diisi.'], 422);
+    }
+    // The API stores a relative application path only; absolute filesystem paths are rejected.
+    if (str_contains($photoPath, '..') || str_starts_with($photoPath, '/') || preg_match('/^[A-Za-z]:[\\\\\/]/', $photoPath)) {
+        json_response(['success' => false, 'message' => 'Path foto check-in tidak valid.'], 422);
     }
 
     $cfg = db()->query('SELECT * FROM company_settings ORDER BY id LIMIT 1')->fetch();
@@ -85,6 +99,7 @@ if ($action === 'checkin') {
         json_response(['success' => false, 'message' => 'Akun belum memiliki profile salesman aktif.'], 422);
     }
 
+    // DB unique index uq_active_visit_per_sales is the final concurrency guard.
     $activeStmt = db()->prepare("SELECT id FROM visits WHERE sales_id=? AND status='ACTIVE' LIMIT 1");
     $activeStmt->execute([$salesId]);
     if ($activeStmt->fetchColumn()) {
@@ -105,6 +120,9 @@ if ($action === 'checkin') {
         json_response(['success' => true, 'visit_id' => $visitId, 'distance_meters' => round($distance, 2), 'checkin_at' => $now->format(DATE_ATOM)], 201);
     } catch (Throwable $e) {
         $pdo->rollBack();
+        if ((int) $e->getCode() === 23000 || str_contains(strtolower($e->getMessage()), 'uq_active_visit_per_sales')) {
+            json_response(['success' => false, 'message' => 'Kunjungan aktif sudah dibuat. Silakan gunakan kunjungan tersebut.'], 409);
+        }
         json_response(['success' => false, 'message' => 'Check-in gagal diproses.'], 500);
     }
 }
@@ -115,6 +133,9 @@ if ($action === 'checkout') {
 
     $lat = request_float('latitude');
     $lon = request_float('longitude');
+    if ($lat < -90 || $lat > 90 || $lon < -180 || $lon > 180) {
+        json_response(['success' => false, 'message' => 'Koordinat GPS tidak valid.'], 422);
+    }
     $stmt = db()->prepare("SELECT v.*, o.latitude AS outlet_latitude, o.longitude AS outlet_longitude, cs.minimum_visit_minutes, cs.timezone FROM visits v JOIN sales s ON s.id=v.sales_id JOIN outlets o ON o.id=v.outlet_id CROSS JOIN company_settings cs WHERE s.user_id=? AND v.status='ACTIVE' ORDER BY v.id DESC LIMIT 1");
     $stmt->execute([(int) $user['id']]);
     $visit = $stmt->fetch();

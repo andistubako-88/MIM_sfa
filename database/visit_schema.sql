@@ -24,6 +24,7 @@ CREATE TABLE visits (
   FOREIGN KEY (sales_id) REFERENCES sales(id),
   FOREIGN KEY (outlet_id) REFERENCES outlets(id),
   INDEX idx_visits_sales_date (sales_id, visit_date),
+  INDEX idx_visits_sales_status (sales_id, status),
   INDEX idx_visits_outlet_date (outlet_id, visit_date),
   INDEX idx_visits_status (status),
   UNIQUE INDEX uq_active_visit_per_sales (active_sales_id)
