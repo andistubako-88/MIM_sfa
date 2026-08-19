@@ -10,6 +10,10 @@ INSERT INTO permissions(code,name,module)
 SELECT 'orders.approve','Approve Orders','orders'
 WHERE NOT EXISTS (SELECT 1 FROM permissions WHERE code='orders.approve');
 
+INSERT INTO permissions(code,name,module)
+SELECT 'visits.checkout','Checkout Visit','visits'
+WHERE NOT EXISTS (SELECT 1 FROM permissions WHERE code='visits.checkout');
+
 -- OWNER/ADMIN/SUPERVISOR can view orders; approval remains restricted to roles
 -- configured by the application's approval permission seed.
 INSERT IGNORE INTO role_permissions(role_id,permission_id)
@@ -23,7 +27,14 @@ SELECT r.id,p.id
 FROM roles r CROSS JOIN permissions p
 WHERE r.code='SALES' AND p.code='orders.view';
 
--- Add supporting indexes only when they do not already exist.
+-- OWNER/ADMIN/SUPERVISOR may checkout visits only when their role is explicitly
+-- granted the permission. SALES gets the normal field-work capability.
+INSERT IGNORE INTO role_permissions(role_id,permission_id)
+SELECT r.id,p.id
+FROM roles r CROSS JOIN permissions p
+WHERE r.code IN ('OWNER','ADMIN','SUPERVISOR','SALES') AND p.code='visits.checkout';
+
+-- Supporting indexes only when they do not already exist.
 SET @sql = (
   SELECT IF(
     EXISTS (
