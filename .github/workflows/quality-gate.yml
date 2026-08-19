@@ -134,6 +134,9 @@ jobs:
       - name: Finance hardening regression guard
         run: php tests/finance_hardening_regression.php
 
+      - name: Visit and Finance hardening contract guard
+        run: php tests/visit_finance_hardening_contract.php
+
       - name: Smoke test
         run: php tests/smoke_test.php
 
