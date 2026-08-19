@@ -84,10 +84,10 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          mysql -N -h "$MIM_TEST_DB_HOST" -u"$MIM_TEST_DB_USER" -p"$MIM_TEST_DB_PASS" -D "$MIM_TEST_DB_NAME" -e "SELECT COUNT(*) FROM permissions WHERE code='orders.view'" | grep -qx '1'
-          mysql -N -h "$MIM_TEST_DB_HOST" -u"$MIM_TEST_DB_USER" -p"$MIM_TEST_DB_PASS" -D "$MIM_TEST_DB_NAME" -e "SELECT COUNT(*) FROM permissions WHERE code='orders.approve'" | grep -qx '1'
-          mysql -N -h "$MIM_TEST_DB_HOST" -u"$MIM_TEST_DB_USER" -p"$MIM_TEST_DB_PASS" -D "$MIM_TEST_DB_NAME" -e "SELECT COUNT(*) FROM information_schema.statistics WHERE table_schema='${MIM_TEST_DB_NAME}' AND table_name='visits' AND index_name='idx_visits_sales_status'" | grep -qx '1'
-          mysql -N -h "$MIM_TEST_DB_HOST" -u"$MIM_TEST_DB_USER" -p"$MIM_TEST_DB_PASS" -D "$MIM_TEST_DB_NAME" -e "SELECT COUNT(*) FROM information_schema.statistics WHERE table_schema='${MIM_TEST_DB_NAME}' AND table_name='orders' AND index_name='idx_orders_sales_status'" | grep -qx '1'
+          mysql -N -h "$MIM_TEST_DB_HOST" -u"$MIM_TEST_DB_USER" -p"$MIM_TEST_DB_PASS" -D "$MIM_TEST_DB_NAME" -e "SELECT COUNT(*) FROM permissions WHERE code='orders.view'" | grep -qx '1' || { echo 'Missing permission: orders.view'; exit 1; }
+          mysql -N -h "$MIM_TEST_DB_HOST" -u"$MIM_TEST_DB_USER" -p"$MIM_TEST_DB_PASS" -D "$MIM_TEST_DB_NAME" -e "SELECT COUNT(*) FROM permissions WHERE code='orders.approve'" | grep -qx '1' || { echo 'Missing permission: orders.approve'; exit 1; }
+          mysql -N -h "$MIM_TEST_DB_HOST" -u"$MIM_TEST_DB_USER" -p"$MIM_TEST_DB_PASS" -D "$MIM_TEST_DB_NAME" -e "SELECT COUNT(DISTINCT index_name) FROM information_schema.statistics WHERE table_schema='${MIM_TEST_DB_NAME}' AND table_name='visits' AND index_name='idx_visits_sales_status'" | grep -qx '1' || { echo 'Missing index: visits.idx_visits_sales_status'; mysql -e "SHOW INDEX FROM ${MIM_TEST_DB_NAME}.visits"; exit 1; }
+          mysql -N -h "$MIM_TEST_DB_HOST" -u"$MIM_TEST_DB_USER" -p"$MIM_TEST_DB_PASS" -D "$MIM_TEST_DB_NAME" -e "SELECT COUNT(DISTINCT index_name) FROM information_schema.statistics WHERE table_schema='${MIM_TEST_DB_NAME}' AND table_name='orders' AND index_name='idx_orders_sales_status'" | grep -qx '1' || { echo 'Missing index: orders.idx_orders_sales_status'; mysql -e "SHOW INDEX FROM ${MIM_TEST_DB_NAME}.orders"; exit 1; }
       - name: Verify finance hardening migration
         shell: bash
         run: |
