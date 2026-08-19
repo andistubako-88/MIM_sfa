@@ -22,6 +22,7 @@ CREATE TABLE orders (
   FOREIGN KEY (outlet_id) REFERENCES outlets(id),
   FOREIGN KEY (approved_by) REFERENCES users(id) ON DELETE SET NULL,
   INDEX idx_orders_sales_date (sales_id, submitted_at),
+  INDEX idx_orders_sales_status (sales_id, status),
   INDEX idx_orders_outlet_date (outlet_id, submitted_at),
   INDEX idx_orders_visit (visit_id),
   INDEX idx_orders_status (status)
@@ -51,6 +52,5 @@ CREATE TABLE order_status_history (
   notes VARCHAR(500) NULL,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (order_id) REFERENCES orders(id) ON DELETE CASCADE,
-  FOREIGN KEY (changed_by) REFERENCES users(id) ON DELETE SET NULL,
   INDEX idx_order_history (order_id, created_at)
 );
