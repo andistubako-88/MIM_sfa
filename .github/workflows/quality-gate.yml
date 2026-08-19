@@ -91,7 +91,9 @@ jobs:
         run: |
           set -euo pipefail
           mysql -N -h 127.0.0.1 -uroot -proot -e "SELECT COUNT(*) FROM information_schema.columns WHERE table_schema='mim_sfa_test' AND table_name='payments' AND column_name='idempotency_key'" | grep -qx '1'
-          mysql -N -h 127.0.0.1 -uroot -proot -e "SELECT COUNT(*) FROM information_schema.statistics WHERE table_schema='mim_sfa_test' AND table_name='payments' AND index_name='uq_payment_idempotency_key'" | grep -qx '1'
+          mysql -N -h 127.0.0.1 -uroot -proot -e "SELECT COUNT(DISTINCT index_name) FROM information_schema.statistics WHERE table_schema='mim_sfa_test' AND table_name='payments' AND index_name='uq_payment_idempotency_key' AND non_unique=0" | grep -qx '1'
+          mysql -N -h 127.0.0.1 -uroot -proot -e "SELECT COUNT(DISTINCT index_name) FROM information_schema.statistics WHERE table_schema='mim_sfa_test' AND table_name='payments' AND index_name='idx_payment_settlement_lookup' AND non_unique=1" | grep -qx '1'
+          mysql -N -h 127.0.0.1 -uroot -proot -e "SELECT COUNT(*) FROM information_schema.statistics WHERE table_schema='mim_sfa_test' AND table_name='payments' AND index_name='idx_payment_settlement_lookup'" | grep -qx '4'
 
       - name: Configure disposable application
         shell: bash
