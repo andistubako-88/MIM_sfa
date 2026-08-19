@@ -3,10 +3,12 @@
 declare(strict_types=1);
 
 require __DIR__ . '/../api/auth.php';
+
 if (current_user()) {
     header('Location: dashboard.php');
     exit;
 }
+
 $csrf = csrf_token();
 ?>
 <!doctype html>
@@ -35,24 +37,50 @@ $csrf = csrf_token();
 const form = document.getElementById('login-form');
 const errorBox = document.getElementById('login-error');
 const submit = document.getElementById('login-submit');
+
+function showLoginError(message) {
+    errorBox.textContent = message;
+    errorBox.hidden = false;
+}
+
+async function readJsonResponse(response) {
+    const text = await response.text();
+    if (!text.trim()) {
+        throw new Error(`Server tidak mengembalikan JSON (HTTP ${response.status}).`);
+    }
+
+    try {
+        return JSON.parse(text);
+    } catch {
+        throw new Error(`Respons server bukan JSON yang valid (HTTP ${response.status}).`);
+    }
+}
+
 form.addEventListener('submit', async (event) => {
     event.preventDefault();
     errorBox.hidden = true;
     submit.disabled = true;
     submit.textContent = 'Memproses...';
+
     try {
         const response = await fetch(form.action, {
             method: 'POST',
             credentials: 'same-origin',
-            headers: {'Accept': 'application/json'},
+            headers: {
+                'Accept': 'application/json',
+                'X-Requested-With': 'XMLHttpRequest'
+            },
             body: new FormData(form)
         });
-        const payload = await response.json();
-        if (!response.ok || !payload.success) throw new Error(payload.message || 'Login gagal.');
+
+        const payload = await readJsonResponse(response);
+        if (!response.ok || !payload.success) {
+            throw new Error(payload.message || 'Login gagal.');
+        }
+
         window.location.replace('dashboard.php');
     } catch (error) {
-        errorBox.textContent = error.message || 'Login gagal.';
-        errorBox.hidden = false;
+        showLoginError(error instanceof Error ? error.message : 'Login gagal.');
         submit.disabled = false;
         submit.textContent = 'Masuk';
     }
