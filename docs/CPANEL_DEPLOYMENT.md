@@ -12,6 +12,9 @@ Use a dedicated application directory outside the web root when the hosting plan
 ├── docs/
 ├── tests/
 └── public/
+    ├── .htaccess
+    ├── api/
+    │   └── index.php      # cPanel API adapter
     ├── index.php
     ├── login.php
     ├── dashboard.php
@@ -30,12 +33,31 @@ Set the domain/subdomain document root to:
 
 Do **not** upload production credentials to GitHub.
 
-## Important API routing constraint
+## API routing on shared hosting
 
-The current source keeps `api/` outside `public/`. A normal Apache document root of `public/` cannot directly expose `/api/*.php` without an explicit server-level routing rule. Before production deployment, choose one of these supported approaches:
+The source API implementation remains in the private `api/` directory. Because normal shared cPanel hosting cannot rely on a server-level Apache `Alias`, the production package includes a small public adapter at `public/api/index.php`.
 
-1. Configure Apache/cPanel `Alias` or an equivalent server-level mapping from `/api` to `/home/CPANEL_USER/mim_sfa/api`.
-2. Move/copy the API entrypoints into `public/api/` and update their relative includes so they continue to load the private application/config layer safely.
+`public/.htaccess` maps:
+
+```text
+/api/health.php
+/api/login.php
+/api/order.php
+...
+```
+
+to:
+
+```text
+/api/index.php?endpoint=health.php
+/api/index.php?endpoint=login.php
+/api/index.php?endpoint=order.php
+...
+```
+
+The adapter then loads the matching script from the private `/api` directory. This keeps the application/config/database/tests directories outside the document root while remaining compatible with ordinary cPanel/Apache hosting.
+
+**Important:** do not remove `public/api/index.php` or the API rewrite rules from `public/.htaccess`.
 
 Do not expose `config/`, `database/`, `docs/`, or `tests/` as web directories.
 
@@ -47,7 +69,7 @@ Keep `public/uploads/.htaccess` in place. It disables directory listing and bloc
 
 Create the real production configuration on the server from `config/config.example.php`. Replace:
 
-- `base_url`
+- `base_url` → `https://sfa.mahameruinsanmandiri.id`
 - database host
 - database name
 - database username
@@ -55,6 +77,10 @@ Create the real production configuration on the server from `config/config.examp
 - production session/security settings as required by the hosting environment
 
 Never commit the real production config.
+
+## PHP
+
+Use PHP 8.3 or newer. The application and CI are validated on PHP 8.3.
 
 ## Database migration order
 
@@ -64,20 +90,23 @@ Run migrations in this order on a backup/staging database first:
 2. Dependent application schemas
 3. Finance schema
 4. `database/migrations/20260815_finance_hardening.sql`
-5. Required seed/permission data
+5. Required seed/permission data, including `database/finance_approval_permissions.sql`
 
-Verify the resulting tables/indexes before production cutover.
+Verify the resulting tables, permissions, and indexes before production cutover.
 
 ## Production cutover checklist
 
 - [ ] Backup production database
-- [ ] Create production config outside Git
+- [ ] Upload application package to `/home/CPANEL_USER/mim_sfa/`
+- [ ] Set document root to `/home/CPANEL_USER/mim_sfa/public`
+- [ ] Create production `config/config.php` outside Git
 - [ ] Set PHP to 8.3+
-- [ ] Set document root to `public/` if using private application layout
-- [ ] Configure `/api` routing explicitly
+- [ ] Confirm `public/api/index.php` exists
+- [ ] Confirm `public/.htaccess` is enabled
 - [ ] Confirm HTTPS
-- [ ] Confirm uploads are writable but PHP execution is blocked
+- [ ] Confirm `public/uploads` is writable but PHP execution is blocked
 - [ ] Run database migrations
+- [ ] Verify `/api/health.php`
 - [ ] Verify login
 - [ ] Verify RBAC
 - [ ] Verify Sales Check-In/Check-Out
@@ -89,6 +118,17 @@ Verify the resulting tables/indexes before production cutover.
 - [ ] Verify Owner-only Report Center
 - [ ] Review PHP/Apache error logs
 
-## Do not deploy yet
+## Current CI status
 
-The GitHub Actions Quality Gate must be executed successfully against the final commit before production cutover. The current repository connector has no workflow-dispatch operation, so manual execution from GitHub Actions may still be required.
+The finance permission fix was merged to `main` after the final Quality Gate passed all of these checks:
+
+- PHP syntax check
+- Sales Workspace regression guard
+- Finance hardening regression guard
+- Visit and Finance hardening contract guard
+- Smoke test
+- E2E contract test
+- MySQL integration preflight
+- Real API transaction E2E
+
+Production deployment should still be validated against the final `main` commit before cutover.
