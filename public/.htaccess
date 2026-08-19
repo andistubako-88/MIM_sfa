@@ -1,12 +1,19 @@
 RewriteEngine On
 
-# Do not expose configuration, database, or documentation directories.
-RewriteRule ^(?:config|database|docs)(?:/|$) - [F,L]
+# Do not expose private application directories if they are accidentally
+# copied under the document root.
+RewriteRule ^(?:config|database|docs|tests)(?:/|$) - [F,L]
 
-# Keep API endpoints accessible directly.
-RewriteRule ^api/(.*)$ api/$1 [L]
+# cPanel deployment adapter: /api/foo.php -> /api/index.php?endpoint=foo.php
+# The real API scripts remain outside public/.
+RewriteCond %{DOCUMENT_ROOT}/api/index.php -f
+RewriteCond %{REQUEST_URI} ^/api/([A-Za-z0-9_-]+\.php)$ [NC]
+RewriteRule ^api/([A-Za-z0-9_-]+\.php)$ api/index.php?endpoint=$1 [QSA,L]
 
-# Front controller placeholder for the mobile web application.
+# Never execute arbitrary PHP files uploaded under uploads/.
+RewriteRule ^uploads/.*\.(?:php|phtml|phar|php[0-9]*)$ - [F,L,NC]
+
+# Front controller for non-file/non-directory routes.
 RewriteCond %{REQUEST_FILENAME} !-f
 RewriteCond %{REQUEST_FILENAME} !-d
 RewriteRule ^ index.php [L]
