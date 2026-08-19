@@ -8,6 +8,7 @@ if (!$user) {
     exit;
 }
 $isOwner = strtoupper((string)$user['role_code']) === 'OWNER';
+$csrf = csrf_token();
 ?>
 <!doctype html>
 <html lang="id">
@@ -22,7 +23,13 @@ $isOwner = strtoupper((string)$user['role_code']) === 'OWNER';
 <div class="app">
     <header class="topbar">
         <div class="brand">MAHAMERU • SFA / DMS</div>
-        <div class="role"><?= htmlspecialchars((string)$user['full_name'], ENT_QUOTES, 'UTF-8') ?> · <?= htmlspecialchars((string)$user['role_name'], ENT_QUOTES, 'UTF-8') ?></div>
+        <div class="role">
+            <?= htmlspecialchars((string)$user['full_name'], ENT_QUOTES, 'UTF-8') ?> · <?= htmlspecialchars((string)$user['role_name'], ENT_QUOTES, 'UTF-8') ?>
+            <form method="post" action="../api/logout.php" style="display:inline;margin-left:12px">
+                <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrf, ENT_QUOTES, 'UTF-8') ?>">
+                <button type="submit">Keluar</button>
+            </form>
+        </div>
     </header>
     <div class="layout">
         <aside class="sidebar">
