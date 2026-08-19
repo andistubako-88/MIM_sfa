@@ -2,7 +2,10 @@
 
 declare(strict_types=1);
 require __DIR__ . '/auth.php';
-require_permission('reports.view');
+$u = require_permission('reports.view');
+if (strtoupper((string)$u['role_code']) !== 'OWNER') {
+    json_response(['success'=>false,'message'=>'Report Center hanya dapat diakses oleh Owner.'],403);
+}
 $from=(string)($_GET['from']??date('Y-m-01'));$to=(string)($_GET['to']??date('Y-m-d'));
 if(!preg_match('/^\d{4}-\d{2}-\d{2}$/',$from)||!preg_match('/^\d{4}-\d{2}-\d{2}$/',$to)||$from>$to)json_response(['success'=>false,'message'=>'Periode laporan tidak valid.'],422);
 $dimension=strtolower((string)($_GET['dimension']??'salesman'));if(!in_array($dimension,['salesman','area','channel','sku'],true))json_response(['success'=>false,'message'=>'Dimension tidak didukung.'],422);
