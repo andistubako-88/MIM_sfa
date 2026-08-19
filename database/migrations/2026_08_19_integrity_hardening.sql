@@ -14,33 +14,30 @@ INSERT INTO permissions(code,name,module)
 SELECT 'visits.checkout','Checkout Visit','visits'
 WHERE NOT EXISTS (SELECT 1 FROM permissions WHERE code='visits.checkout');
 
--- OWNER/ADMIN/SUPERVISOR can view orders; approval remains restricted to roles
--- configured by the application's approval permission seed.
 INSERT IGNORE INTO role_permissions(role_id,permission_id)
 SELECT r.id,p.id
 FROM roles r CROSS JOIN permissions p
 WHERE r.code IN ('OWNER','ADMIN','SUPERVISOR') AND p.code='orders.view';
 
--- Sales may view only their own orders; api/order.php enforces ownership.
 INSERT IGNORE INTO role_permissions(role_id,permission_id)
 SELECT r.id,p.id
 FROM roles r CROSS JOIN permissions p
 WHERE r.code='SALES' AND p.code='orders.view';
 
--- OWNER/ADMIN/SUPERVISOR may checkout visits only when their role is explicitly
--- granted the permission. SALES gets the normal field-work capability.
 INSERT IGNORE INTO role_permissions(role_id,permission_id)
 SELECT r.id,p.id
 FROM roles r CROSS JOIN permissions p
 WHERE r.code IN ('OWNER','ADMIN','SUPERVISOR','SALES') AND p.code='visits.checkout';
 
--- Supporting indexes only when they do not already exist.
+-- Approval is a management action. Sales and warehouse users must not receive it.
+INSERT IGNORE INTO role_permissions(role_id,permission_id)
+SELECT r.id,p.id
+FROM roles r CROSS JOIN permissions p
+WHERE r.code IN ('OWNER','ADMIN','SUPERVISOR') AND p.code='orders.approve';
+
 SET @sql = (
   SELECT IF(
-    EXISTS (
-      SELECT 1 FROM information_schema.statistics
-      WHERE table_schema=DATABASE() AND table_name='visits' AND index_name='idx_visits_sales_status'
-    ),
+    EXISTS (SELECT 1 FROM information_schema.statistics WHERE table_schema=DATABASE() AND table_name='visits' AND index_name='idx_visits_sales_status'),
     'SELECT 1',
     'CREATE INDEX idx_visits_sales_status ON visits(sales_id,status)'
   )
@@ -51,10 +48,7 @@ DEALLOCATE PREPARE stmt;
 
 SET @sql = (
   SELECT IF(
-    EXISTS (
-      SELECT 1 FROM information_schema.statistics
-      WHERE table_schema=DATABASE() AND table_name='orders' AND index_name='idx_orders_sales_status'
-    ),
+    EXISTS (SELECT 1 FROM information_schema.statistics WHERE table_schema=DATABASE() AND table_name='orders' AND index_name='idx_orders_sales_status'),
     'SELECT 1',
     'CREATE INDEX idx_orders_sales_status ON orders(sales_id,status)'
   )
