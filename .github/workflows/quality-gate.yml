@@ -1,3 +1,4 @@
+# CI trigger verification: this comment intentionally creates a fresh push event.
 name: MIM SFA Quality Gate
 
 on:
