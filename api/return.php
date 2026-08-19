@@ -41,7 +41,7 @@ try {
     }
 
     $num = 'RET-' . date('YmdHis') . '-' . strtoupper(bin2hex(random_bytes(3)));
-    $ins = $pdo->prepare("INSERT INTO return_documents(return_number, delivery_id, sales_id, outlet_id, status, reason, created_by) VALUES(?, ?, ?, ?, 'POSTED', ?, ?)");
+    $ins = $pdo->prepare("INSERT INTO return_documents(return_number, delivery_id, sales_id, outlet_id, status, reason, created_by, posted_at) VALUES(?, ?, ?, ?, 'POSTED', ?, ?, NOW())");
     $ins->execute([$num, $delivery['id'], $delivery['sales_id'], $delivery['outlet_id'], $reason ?: null, $user['id']]);
     $returnId = (int) $pdo->lastInsertId();
 
