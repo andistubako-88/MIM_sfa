@@ -131,6 +131,9 @@ jobs:
       - name: Sales Workspace regression guard
         run: php tests/sales_workspace_regression.php
 
+      - name: Finance hardening regression guard
+        run: php tests/finance_hardening_regression.php
+
       - name: Smoke test
         run: php tests/smoke_test.php
 
