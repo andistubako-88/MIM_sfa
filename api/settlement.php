@@ -20,7 +20,7 @@ $dateErrors = DateTimeImmutable::getLastErrors();
 if ($dateObject === false || ($dateErrors !== false && ($dateErrors['warning_count'] > 0 || $dateErrors['error_count'] > 0))) {
     json_response(['success' => false, 'message' => 'Tanggal settlement tidak valid.'], 422);
 }
-if ($salesId < 1 || $submitted < 0) {
+if ($salesId < 1 || $submitted < 0 || !is_finite($submitted)) {
     json_response(['success' => false, 'message' => 'Data settlement tidak valid.'], 422);
 }
 
@@ -32,14 +32,23 @@ try {
     if ($user['role_code'] === 'SALES' && !$owner->fetchColumn()) {
         throw new RuntimeException('Salesman tidak valid.', 403);
     }
+
     $existing = $pdo->prepare("SELECT id, status FROM settlement_documents WHERE sales_id = ? AND settlement_date = ? AND status <> 'REJECTED' LIMIT 1 FOR UPDATE");
     $existing->execute([$salesId, $date]);
     if ($existing->fetch()) {
         throw new RuntimeException('Settlement untuk salesman dan tanggal tersebut sudah dibuat.', 409);
     }
-    $q = $pdo->prepare("SELECT COALESCE(SUM(p.amount), 0) FROM payments p WHERE p.sales_id = ? AND p.payment_date = ? AND p.payment_method = 'CASH' AND p.status = 'POSTED'");
+
+    // Lock all posted CASH payments used by this settlement before calculating
+    // expected cash, preventing a concurrent payment from changing the basis.
+    $q = $pdo->prepare("SELECT id, amount FROM payments WHERE sales_id = ? AND payment_date = ? AND payment_method = 'CASH' AND status = 'POSTED' ORDER BY id FOR UPDATE");
     $q->execute([$salesId, $date]);
-    $expected = (float) $q->fetchColumn();
+    $expected = 0.0;
+    while ($payment = $q->fetch()) {
+        $expected += (float) $payment['amount'];
+    }
+    $expected = round($expected, 2);
+
     $diff = round($submitted - $expected, 2);
     $num = 'SET-' . date('YmdHis') . '-' . strtoupper(bin2hex(random_bytes(3)));
     $ins = $pdo->prepare("INSERT INTO settlement_documents (settlement_number, sales_id, settlement_date, expected_cash, submitted_cash, difference, status, notes, created_by) VALUES (?, ?, ?, ?, ?, ?, 'SUBMITTED', ?, ?)");
