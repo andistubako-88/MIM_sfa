@@ -141,6 +141,8 @@ jobs:
         run: php tests/finance_hardening_regression.php
       - name: Visit and Finance hardening contract guard
         run: php tests/visit_finance_hardening_contract.php
+      - name: Upload security regression guard
+        run: php tests/upload_security_regression.php
       - name: Smoke test
         run: php tests/smoke_test.php
       - name: E2E contract test
