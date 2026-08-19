@@ -32,6 +32,7 @@ CREATE TABLE payments (
   sales_id BIGINT UNSIGNED NOT NULL,
   amount DECIMAL(15,2) NOT NULL,
   payment_method ENUM('CASH','TRANSFER','GIRO','OTHER') NOT NULL,
+  idempotency_key VARCHAR(100) NULL,
   payment_date DATE NOT NULL,
   reference_number VARCHAR(100) NULL,
   notes VARCHAR(500) NULL,
@@ -42,6 +43,7 @@ CREATE TABLE payments (
   FOREIGN KEY (outlet_id) REFERENCES outlets(id),
   FOREIGN KEY (sales_id) REFERENCES sales(id),
   FOREIGN KEY (created_by) REFERENCES users(id),
+  UNIQUE KEY uq_payments_idempotency_key(idempotency_key),
   INDEX idx_payment_invoice(invoice_id),
   INDEX idx_payment_sales(sales_id, payment_date)
 );
