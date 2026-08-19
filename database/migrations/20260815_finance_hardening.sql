@@ -4,7 +4,7 @@ USE mim_sfa;
 -- existing payment semantics. Existing integrations may omit this field.
 --
 -- This migration is intentionally idempotent because finance_schema.sql already
--- contains the hardened column/indexes for fresh installations, while existing
+-- contains the hardened column/index for fresh installations, while existing
 -- production databases may still need the ALTER statements.
 SET @sql = IF(
   (SELECT COUNT(*)
@@ -12,21 +12,23 @@ SET @sql = IF(
    WHERE table_schema = DATABASE()
      AND table_name = 'payments'
      AND column_name = 'idempotency_key') = 0,
-  'ALTER TABLE payments ADD COLUMN idempotency_key VARCHAR(100) NULL AFTER reference_number',
+  'ALTER TABLE payments ADD COLUMN idempotency_key VARCHAR(100) NULL AFTER payment_method',
   'SELECT 1'
 );
 PREPARE stmt FROM @sql;
 EXECUTE stmt;
 DEALLOCATE PREPARE stmt;
 
+-- Accept either legacy hardened index name or the canonical fresh-schema name.
+-- Never create a second unique index over the same idempotency column.
 SET @sql = IF(
   (SELECT COUNT(*)
    FROM information_schema.statistics
    WHERE table_schema = DATABASE()
      AND table_name = 'payments'
-     AND index_name = 'uq_payment_idempotency_key'
+     AND index_name IN ('uq_payments_idempotency_key','uq_payment_idempotency_key')
      AND non_unique = 0) = 0,
-  'ALTER TABLE payments ADD UNIQUE KEY uq_payment_idempotency_key(idempotency_key)',
+  'ALTER TABLE payments ADD UNIQUE KEY uq_payments_idempotency_key(idempotency_key)',
   'SELECT 1'
 );
 PREPARE stmt FROM @sql;
