@@ -4,11 +4,11 @@ RewriteEngine On
 # copied under the document root.
 RewriteRule ^(?:config|database|docs|tests)(?:/|$) - [F,L]
 
-# cPanel deployment adapter: /api/foo.php -> /api/index.php?endpoint=foo.php
+# cPanel deployment adapter for a document root of /public:
+# /api/foo.php -> /api/index.php?endpoint=foo.php
 # The real API scripts remain outside public/.
-RewriteCond %{DOCUMENT_ROOT}/api/index.php -f
-RewriteCond %{REQUEST_URI} ^/api/([A-Za-z0-9_-]+\.php)$ [NC]
-RewriteRule ^api/([A-Za-z0-9_-]+\.php)$ api/index.php?endpoint=$1 [QSA,L]
+RewriteRule ^api/index\.php$ - [L]
+RewriteRule ^api/([A-Za-z0-9_-]+\.php)$ api/index.php?endpoint=$1 [QSA,L,NC]
 
 # Never execute arbitrary PHP files uploaded under uploads/.
 RewriteRule ^uploads/.*\.(?:php|phtml|phar|php[0-9]*)$ - [F,L,NC]
