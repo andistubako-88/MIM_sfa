@@ -52,5 +52,6 @@ CREATE TABLE order_status_history (
   notes VARCHAR(500) NULL,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (order_id) REFERENCES orders(id) ON DELETE CASCADE,
+  FOREIGN KEY (changed_by) REFERENCES users(id) ON DELETE SET NULL,
   INDEX idx_order_history (order_id, created_at)
 );
