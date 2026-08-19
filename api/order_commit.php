@@ -12,6 +12,10 @@ $pdo=db();$pdo->beginTransaction();
 try{
  $q=$pdo->prepare('SELECT id,sales_id,status FROM orders WHERE id=? LIMIT 1 FOR UPDATE');$q->execute([$orderId]);$order=$q->fetch();
  if(!$order||$order['status']!=='APPROVED')throw new RuntimeException('Order harus APPROVED sebelum stock commit.',409);
+ // If any reservation was already committed, this order has already consumed stock.
+ // Refuse a second commit even if another RESERVED row was created by a legacy/manual process.
+ $already=$pdo->prepare("SELECT 1 FROM order_stock_reservations WHERE order_id=? AND status='COMMITTED' LIMIT 1");$already->execute([$orderId]);
+ if($already->fetchColumn())throw new RuntimeException('Order sudah pernah di-commit ke stock.',409);
  $reservations=$pdo->prepare("SELECT id,stock_location_id,product_id,qty FROM order_stock_reservations WHERE order_id=? AND status='RESERVED' FOR UPDATE");$reservations->execute([$orderId]);$rows=$reservations->fetchAll();
  if(!$rows)throw new RuntimeException('Order belum memiliki reservation aktif.',409);
  foreach($rows as $row){
